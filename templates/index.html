@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Search Data</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+    />
+  </head>
+  <body>
+    <div class="container mt-4">
+      <h2>Search Data</h2>
+      <div class="mb-4">
+        <form id="uploadForm" enctype="multipart/form-data">
+          <div class="form-group">
+            <label for="file">Upload File:</label>
+            <input
+              type="file"
+              class="form-control-file"
+              id="file"
+              name="file"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="bankName">Bank Name:</label>
+            <input
+              type="text"
+              class="form-control"
+              id="bankName"
+              name="bank_name"
+            />
+          </div>
+          <div class="form-group">
+            <label for="productType">Product Type:</label>
+            <input
+              type="text"
+              class="form-control"
+              id="productType"
+              name="product_type"
+            />
+          </div>
+          <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+      </div>
+
+      <div class="mb-4">
+        <form id="searchForm">
+          <div class="form-group">
+            <label for="searchValue">Search Value:</label>
+            <input
+              type="text"
+              class="form-control"
+              id="searchValue"
+              name="search_value"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="bankNameDropdown">Bank Name:</label>
+            <select class="form-control" id="bankNameDropdown" name="bank_name">
+              <option value="">Select Bank Name</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="productTypeDropdown">Product Type:</label>
+            <select
+              class="form-control"
+              id="productTypeDropdown"
+              name="product_type"
+            >
+              <option value="">Select Product Type</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+      </div>
+
+      <div id="searchResults" style="display: none">
+        <h3>Search Results:</h3>
+        <div id="resultsTable"></div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+      function populateDropdowns() {
+        $.ajax({
+          url: "/api/dropdowns",
+          type: "GET",
+          success: function (data) {
+            var bankNamesDropdown = $("#bankNameDropdown");
+            var productTypesDropdown = $("#productTypeDropdown");
+
+            bankNamesDropdown.empty();
+            productTypesDropdown.empty();
+
+            data.bank_names.forEach(function (bankName) {
+              bankNamesDropdown.append(
+                $("<option>").text(bankName).val(bankName)
+              );
+            });
+
+            data.product_types.forEach(function (productType) {
+              productTypesDropdown.append(
+                $("<option>").text(productType).val(productType)
+              );
+            });
+          },
+          error: function (xhr, status, error) {
+            alert("Error fetching dropdown options: " + error);
+          },
+        });
+      }
+
+      // Document ready function
+      $(document).ready(function () {
+        populateDropdowns();
+
+        // Upload form submission
+        $("#uploadForm").submit(function (event) {
+          event.preventDefault();
+          var formData = new FormData(this);
+
+          $.ajax({
+            url: "/upload",
+            type: "POST",
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (response) {
+              alert(response.message);
+              populateDropdowns(); // Update dropdowns after successful upload
+            },
+            error: function (xhr, status, error) {
+              alert(
+                "Error uploading file: " + JSON.parse(xhr.responseText).error
+              );
+            },
+          });
+        });
+
+        // Search form submission
+        $("#searchForm").submit(function (event) {
+          event.preventDefault();
+
+          // Convert form data to JSON object
+          var formArray = $(this).serializeArray();
+          var formData = {};
+          $.map(formArray, function (n, i) {
+            formData[n["name"]] = n["value"];
+          });
+
+          console.log(formData);
+
+          $.ajax({
+            url: "/search",
+            type: "POST",
+            data: JSON.stringify(formData),
+            contentType: "application/json",
+
+            success: function (response) {
+              var resultsDiv = $("#searchResults");
+              var resultsTable = $("#resultsTable");
+              resultsDiv.hide();
+              resultsTable.empty();
+
+              if (response.results.length > 0) {
+                var table = $("<table>").addClass("table");
+                var thead = $("<thead>").append(
+                  "<tr><th>Bank Name</th><th>Product Type</th><th>Sheet</th><th>File</th><th>Source Column</th><th>Data</th></tr>"
+                );
+                var tbody = $("<tbody>");
+
+                response.results.forEach(function (result) {
+                  var row = $("<tr>");
+                  row.append($("<td>").text(result.Bank_Name));
+                  row.append($("<td>").text(result.Product_Type));
+                  row.append($("<td>").text(result.Sheet));
+                  row.append($("<td>").text(result.File));
+                  row.append($("<td>").text(result.Source_Column));
+                  var dataCell = $("<td>");
+                  var dataList = $("<ul>");
+
+                  Object.keys(result.Data).forEach(function (key) {
+                    var listItem = $("<li>").text(
+                      key + ": " + result.Data[key]
+                    );
+                    dataList.append(listItem);
+                  });
+
+                  dataCell.append(dataList);
+                  row.append(dataCell);
+                  tbody.append(row);
+                });
+
+                table.append(thead);
+                table.append(tbody);
+                resultsTable.append(table);
+              } else {
+                resultsTable.text("No results found.");
+              }
+
+              resultsDiv.show();
+            },
+            error: function (xhr, status, error) {
+              alert(
+                "Error searching data: " + JSON.parse(xhr.responseText).error
+              );
+            },
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
